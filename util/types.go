@@ -4,14 +4,15 @@ type Config struct {
     CTFDToken string `mapstructure:"CTFD_TOKEN"`
     DiscordToken    string `mapstructure:"DISCORD_TOKEN"`
     CTFDAddress  string `mapstructure:"BASE_URL"`
+    FirstBloodFile string `mapstructure:"MAP_FILE"`
 }
 
-type challenges struct {
+type Challenges struct {
     Success bool `json:"success"`
-    Data []challengeData `json:"data"`
+    Data []ChallengeData `json:"data"`
 }
 
-type challengeData struct {
+type ChallengeData struct {
     Id int `json:"id"` 
     Challenge_type string `json:"type"`
     Name string `json:"name"`
@@ -24,12 +25,12 @@ type challengeData struct {
     Script string `json:"script"`
 }
 
-type solves struct {
+type Solves struct {
     Success bool `json:"success"`
-    Data []solveData `json:"data"`
+    Data []SolveData `json:"data"`
 }
 
-type solveData struct {
+type SolveData struct {
     Account_id int `json:"account_id"`
     TeamName string `json:"name"`
     Data string `json:"data"`

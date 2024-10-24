@@ -34,7 +34,7 @@ func main() {
     }
     log.Print("Bot is now running. Press CTRL+C to exit.")
     
-    go StartPolling(config.CTFDAddress)
+    go StartPolling(config.CTFDAddress, config.CTFDToken, config.FirstBloodFile, oresecBot)
     stop := make(chan os.Signal, 1)
     signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill) 
     <-stop
