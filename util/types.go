@@ -5,6 +5,42 @@ type Config struct {
     DiscordToken    string `mapstructure:"DISCORD_TOKEN"`
     CTFDAddress  string `mapstructure:"BASE_URL"`
     FirstBloodFile string `mapstructure:"MAP_FILE"`
+    GuildID string `mapstructure:"GUILD_ID"`
+    AppID string `mapstructure:"APP_ID"`
+}
+
+type ChallengePost struct {
+	Category    string  `json:"category"`
+	Decay       int `json:"decay"`
+	Description string  `json:"description"`
+	Function    string  `json:"function"`
+	Initial     int     `json:"initial"`
+	Minimum     int     `json:"minimum"`
+	Name        string  `json:"name"`
+	State       string  `json:"state"`
+	Type        string  `json:"type"`
+}
+
+type ChallengeSubmit struct {
+    Success bool `json:"success"`
+    Data ChallengeSubmitData `json:"data"`
+}
+
+type ChallengeSubmitData struct {
+    Category string `json:"category"` 
+    Connection_info string `json:"connection_info"` 
+    Decay int `json:"decay"`
+    Description string `json:"description"`
+    Id int `json:"id"`
+    Initial int `json:"initial"`
+    Max_attempts int `json:"max_attempts"`
+    Minimum int `json:"minimum"`
+    Name string `json:"name"`
+    Next_id int `json:"next_id"`
+    State string `json:"state"`
+    Type string `json:"type"`
+    Type_data map[string]interface{} `json:"type_data"`
+    Value int `json:"value"`
 }
 
 type Challenges struct {
