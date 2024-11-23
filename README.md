@@ -2,12 +2,19 @@
 
 ## Functionality
 
-# First Bloods on CTF challenges posted to http://cybermine.mines.edu
+# First Bloods on CTF challenges from http://cybermine.mines.edu
+## DONE
 
-# Keeps a record of these challenges
+# Keeps a record of these challenges as to not duplicate
+## DONE
 
-# Automatic user creation for admins
+# Challenge creation for Volunteers via Discord
+## DONE
 
-# Automatic challenge creation for Admins
+# Challenge viewing/editing for Volunteers
+## VIEWING - DONE
 
-# VPN Provisioning (Stretch Goal)
+# Ticket system for participants
+
+
+# VPN Provisioning (Future Work)

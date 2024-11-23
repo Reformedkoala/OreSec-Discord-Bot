@@ -13,10 +13,14 @@ import (
     "os"
 )
 
-func StartPolling(url string, token string, mapfile string, oresecBot *discordgo.Session) {
+func StartPolling(url string, token string, mapfile string, oresecBot *discordgo.Session, firstBloodChannel string, bloodRole string) {
     file, err := os.Open(mapfile)
     if err != nil {
-        log.Fatal(err.Error())
+        file, err = os.Create(mapfile)
+        if err != nil {
+            fmt.Println("Creating new Gob file", err)
+            return
+        }
     }
 
     defer file.Close()
@@ -26,16 +30,16 @@ func StartPolling(url string, token string, mapfile string, oresecBot *discordgo
 
 	err = decoder.Decode(&solveSet)
 	if err != nil {
-		log.Fatal("failed to decode file ", err.Error())
+		log.Print("File empty, writing all new challenges ", err.Error())
 	}
 
-    ticker := time.NewTicker(5 * time.Second) 
+    ticker := time.NewTicker(10 * time.Second) 
     defer ticker.Stop()
 
     for {
         select {
         case <-ticker.C:
-            pollAPI(url, token, oresecBot, solveSet)
+            pollAPI(url, token, oresecBot, solveSet, firstBloodChannel, bloodRole)
             file, err := os.Create(mapfile)
             if err != nil {
                 log.Fatal("failed to open file ", err.Error())
@@ -52,13 +56,11 @@ func StartPolling(url string, token string, mapfile string, oresecBot *discordgo
     }
 }
 
-func pollAPI(url string, token string, oresecBot *discordgo.Session, solveSet map[int]bool) {
-
-    log.Print("Updating")
-
+func pollAPI(url string, token string, oresecBot *discordgo.Session, solveSet map[int]bool, firstBloodChannel string, bloodRole string) {
     req, err := http.NewRequest("GET", url + "challenges", nil)
     if err != nil {
-        log.Fatal("Failed to create GET request ", err.Error())
+        log.Print("Failed to create GET request ", err.Error())
+        return
     }
 
     req.Header.Set("Content-Type", "application/json")
@@ -66,21 +68,23 @@ func pollAPI(url string, token string, oresecBot *discordgo.Session, solveSet ma
 
     res, err := http.DefaultClient.Do(req)
     if err != nil {
-        log.Fatal("Failed to create client request ", err.Error())
+        log.Print("Failed to create client request ", err.Error())
+        return
     }
 
     defer res.Body.Close()
     body, readErr := io.ReadAll(res.Body)
     if readErr != nil {
-        log.Fatal(err.Error())
+        log.Print(err.Error())
+        return
     }
 
     var response util.Challenges
     json.Unmarshal(body,&response)
 
     for _, challenge := range response.Data {
-        if challenge.Solves != 0{
-            _, exists := solveSet[challenge.Id] 
+        if challenge.Solves != 0 {
+            _, exists := solveSet[challenge.Id]
             if !exists {
                 req, err = http.NewRequest("GET", url + "challenges/" + fmt.Sprint(challenge.Id) + "/solves", nil)
                 req.Header.Set("Content-Type", "application/json")
@@ -88,18 +92,25 @@ func pollAPI(url string, token string, oresecBot *discordgo.Session, solveSet ma
                 res, err = http.DefaultClient.Do(req)
                 if err != nil {
                     log.Print(err.Error())
+                    return
                 }
 
                 defer res.Body.Close()
                 
-                body, readErr = io.ReadAll(res.Body)
-                if readErr != nil {
+                body, err = io.ReadAll(res.Body)
+                if err != nil {
                     log.Print(err.Error())
+                    return
                 }
                 var solveReturned util.Solves
                 json.Unmarshal(body, &solveReturned)
-                oresecBot.ChannelMessageSend("982156198243614723", "@Competitors " + solveReturned.Data[0].TeamName + " got a First Blood on \"" + challenge.Name + "\" in the category, " + challenge.Category +"!")                
-
+                message := fmt.Sprintf("<@&%s> %s got a First Blood on \"%s\" in the category, %s!", bloodRole, solveReturned.Data[0].TeamName, challenge.Name, challenge.Category)
+                _, err = oresecBot.ChannelMessageSend(firstBloodChannel, message)                
+                if err != nil {
+                    log.Print(err.Error())
+                    return
+                }
+                log.Print(message)
                 solveSet[challenge.Id] = true
             }
         }

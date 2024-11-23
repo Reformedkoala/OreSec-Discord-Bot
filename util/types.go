@@ -5,6 +5,8 @@ type Config struct {
     DiscordToken    string `mapstructure:"DISCORD_TOKEN"`
     CTFDAddress  string `mapstructure:"BASE_URL"`
     FirstBloodFile string `mapstructure:"MAP_FILE"`
+    FirstBloodChannel string `mapstructure:"BLOOD_CHANNEL"`
+    BloodRole string `mapstructure:"BLOOD_ROLE"`
     GuildID string `mapstructure:"GUILD_ID"`
     AppID string `mapstructure:"APP_ID"`
 }
@@ -41,6 +43,18 @@ type ChallengeSubmitData struct {
     Type string `json:"type"`
     Type_data map[string]interface{} `json:"type_data"`
     Value int `json:"value"`
+}
+
+type FlagPost struct {
+    Challenge_ID int `json:"challenge_id"`
+    Content string `json:"content"`
+    Data string `json:"data"`
+    Type string `json:"type"`
+}
+
+type GenericResponse struct {
+    Success bool `json:"success"`
+    Data map[string]interface{} `json:"data"`
 }
 
 type Challenges struct {

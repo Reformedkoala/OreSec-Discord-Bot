@@ -19,10 +19,22 @@ var Commands = []discordgo.ApplicationCommand{
 			Name:        "create_challenge",
 			Description: "Create a CTF Challenge",
 		},
+        {
+            Name:        "get_challenge",
+            Description: "Provide a challenge id and return the challenge information",
+            Options: []*discordgo.ApplicationCommandOption{
+                {
+                    Type:        discordgo.ApplicationCommandOptionInteger,
+                    Name:        "id",
+                    Description: "A required id",
+                    Required:    true, // Mark this argument as required
+                },
+            },
+		},
 	}
 
-var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string){
+		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string) {
 			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseModal,
 				Data: &discordgo.InteractionResponseData{
@@ -98,6 +110,46 @@ var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
 				panic(err)
 			}
 		},
+        "get_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string){
+            id := i.ApplicationCommandData().Options[0].IntValue()
+            response, err := WebsiteRequest(url, token, "challenges", "GET", "/" + fmt.Sprintf("%d", id), "")
+            if err != nil {
+                err = Respond(s, i, "Unable to fetch challenge, please try again or message an Admin")
+
+                if err != nil {
+                    panic(err)    
+                }
+            }
+            challenge := response.(*GenericResponse)
+            if !challenge.Success {
+                err = Respond(s, i, fmt.Sprintf("Unable to fetch challenge ID %d, please try a different ID or message an Admin", id)) 
+
+                if err != nil {
+                    panic(err)    
+                }
+            }
+            response, err = WebsiteRequest(url, token, "flags", "GET", "/" + fmt.Sprintf("%d", id), "")
+            if err != nil {
+                err = Respond(s, i, "Unable to fetch flag, please try again or message an Admin")
+
+                if err != nil {
+                    panic(err)    
+                }
+            }
+            flag := response.(*GenericResponse)
+            err = Respond(s, i, fmt.Sprintf("Challenge ID: %.0f\nChallenge Name: %s\nChallenge Category %s\nChallenge Description: %s \nInitial Value: %.0f\nDecay: %.0f\nMinimum: %.0f\nFlag: %s", 
+                challenge.Data["id"], 
+                challenge.Data["name"], 
+                challenge.Data["category"], 
+                challenge.Data["description"], 
+                challenge.Data["initial"], 
+                challenge.Data["decay"], 
+                challenge.Data["minimum"],
+                flag.Data["content"])) 
+            if err != nil {
+                panic(err)    
+            }
+        },
     }
 
 var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string){
@@ -140,52 +192,37 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
             challenge.Initial = numbers[0]
             challenge.Decay = numbers[1]
             challenge.Minimum = numbers[2]
-            
-            log.Printf("Challenge Name: %s, Catgeory: %s, Description: %s, Initial: %d, Decay: %d, Final: %d, Flag: %s", 
-                challenge.Name, 
-                challenge.Category, 
-                challenge.Description, 
-                challenge.Initial, 
-                challenge.Decay, 
-                challenge.Minimum, 
-                flag,
-            )
 		    challenge.Function = "logarithmic"
             challenge.State = "hidden"
             challenge.Type = "dynamic"
-
-            jsonData, err := json.Marshal(challenge)
+            
+            webResponse, err := WebsiteRequest(url, token, "challenges", "POST", "", challenge) 
+            submitResponse := webResponse.(*ChallengeSubmit)
             if err != nil {
-                log.Printf("Error marshalling JSON: %v\n", err)
+                log.Print(err.Error())
+                err = Respond(s, i, "We ran into an issue sending the challenge to the server, DM an Admin")
+                if err != nil {
+                    panic(err)
+                }
                 return
             }
 
-            req, err := http.NewRequest("POST", url + "challenges", bytes.NewBuffer(jsonData))
+            var flagPost FlagPost 
+            flagPost.Challenge_ID = submitResponse.Data.Id
+            flagPost.Content = flag
+            flagPost.Data = "case_insensitive"
+            flagPost.Type = "static"
+            
+            webResponse, err = WebsiteRequest(url, token, "flags", "POST", "", flagPost)
             if err != nil {
-                log.Fatal("Failed to create post request ", err.Error())
-            }
-
-            req.Header.Set("Content-Type", "application/json")
-            req.Header.Set("Authorization", token)
-
-            res, err := http.DefaultClient.Do(req)
-            if err != nil {
-                log.Fatal("Failed to create client request ", err.Error())
-            }
-
-            defer res.Body.Close()
-            body, readErr := io.ReadAll(res.Body)
-            if readErr != nil {
-                log.Fatal(err.Error())
+                log.Print(err.Error())
+                err = Respond(s, i, "We ran into an issue sending the flag to the server, DM an Admin")
+                if err != nil {
+                    panic(err)
+                }
+                return
             }
             
-        	var submitResponse ChallengeSubmit
-            err = json.Unmarshal(body, &submitResponse)
-            if err != nil {
-                log.Printf("Error unmarshalling JSON response: %v\n", err)
-                return
-            }
-
             log.Printf("ID: %d Challenge Name: %s, Catgeory: %s, Description: %s, Initial: %d, Decay: %d, Final: %d, Flag: %s", 
                 submitResponse.Data.Id,
                 challenge.Name, 
@@ -196,15 +233,8 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                 challenge.Minimum, 
                 flag,
             )
-            
-			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-                Type: discordgo.InteractionResponseChannelMessageWithSource,
-                Data: &discordgo.InteractionResponseData{
-                    Content: "Your challenge has been submitted! Please take note of this id in order to make any changes: " + fmt.Sprintf("%d", submitResponse.Data.Id),
-                    Flags: discordgo.MessageFlagsEphemeral,
-                },
-            })
 
+            err = Respond(s, i, "Your challenge has been submitted! Please take note of this id in order to make any changes: " + fmt.Sprintf("%d", submitResponse.Data.Id))
             if err != nil {
                 panic(err)    
             }
@@ -276,3 +306,67 @@ func DMMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate, guildID s
     }
 }
 
+
+func WebsiteRequest(url string, token string, endpoint string, requestType string, option string, data any) (any, error) {
+     
+    var submitResponse interface{}
+
+    switch endpoint {
+        case "challenges":
+            switch requestType {
+                case "POST":
+                    submitResponse = &ChallengeSubmit{}
+                case "GET":
+                    submitResponse = &GenericResponse{}
+                default:
+                    return nil, fmt.Errorf("Invalid requestType: %s", requestType)
+            }
+        case "flags":
+            submitResponse = &GenericResponse{}
+        default:
+            return nil, fmt.Errorf("Invalid endpoint: %s", endpoint)
+    }
+
+
+    jsonData, err := json.Marshal(data)
+    if err != nil {
+        return nil, fmt.Errorf("Error marshalling JSON: %s", err.Error())
+    }
+
+    req, err := http.NewRequest(requestType, url + endpoint + option, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, fmt.Errorf("Failed to create post request: %s", err.Error())
+    }
+
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", token)
+
+    res, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("Failed to create client request: %s", err.Error())
+    }
+
+    defer res.Body.Close()
+    body, err := io.ReadAll(res.Body)
+    if err != nil {
+        return nil, fmt.Errorf("Failed to read body of request: %s", err.Error())
+    }
+    
+    if err := json.Unmarshal(body, submitResponse); err != nil {
+        return nil, fmt.Errorf("Error unmarshalling JSON response: %s\n", err.Error())
+    }
+
+    return submitResponse, nil
+}
+
+func Respond(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error{
+    err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+        Type: discordgo.InteractionResponseChannelMessageWithSource,
+        Data: &discordgo.InteractionResponseData{
+            Content: content,
+            Flags: discordgo.MessageFlagsEphemeral,
+        },
+    })
+
+    return err
+}

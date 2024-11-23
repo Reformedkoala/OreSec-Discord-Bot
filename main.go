@@ -38,7 +38,7 @@ func main() {
 		switch i.Type {
 		case discordgo.InteractionApplicationCommand:
 			if h, ok := util.CommandsHandlers[i.ApplicationCommandData().Name]; ok {
-				h(s, i)
+				h(s, i, config.CTFDToken, config.CTFDAddress)
 			}
 		case discordgo.InteractionModalSubmit:
             if h, ok := util.ResponseHandlers[i.ModalSubmitData().CustomID]; ok{
@@ -66,7 +66,7 @@ func main() {
     }
     defer oresecBot.Close()
 
-    //go StartPolling(config.CTFDAddress, config.CTFDToken, config.FirstBloodFile, oresecBot)
+    go StartPolling(config.CTFDAddress, config.CTFDToken, config.FirstBloodFile, oresecBot, config.FirstBloodChannel, config.BloodRole)
     stop := make(chan os.Signal, 1)
     signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill) 
     <-stop
