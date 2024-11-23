@@ -1,20 +1,24 @@
-### This is the OreSec discord bot written in Go
+# OreSec Discord Bot
+This is the **OreSec Discord bot**, written in **Go**.
 
 ## Functionality
 
-# First Bloods on CTF challenges from http://cybermine.mines.edu
-## DONE
+- [x] **First Bloods on CTF Challenges**  
+  Tracks first bloods on challenges from [CyberMine](http://cybermine.mines.edu).
 
-# Keeps a record of these challenges as to not duplicate
-## DONE
+- [x] **Challenge Record Management**  
+  Keeps a record of challenges to prevent duplication.
 
-# Challenge creation for Volunteers via Discord
-## DONE
+- [x] **Challenge Creation (Volunteers)**  
+  Allows volunteers to create challenges via Discord.
 
-# Challenge viewing/editing for Volunteers
-## VIEWING - DONE
+- [x] **Challenge Viewing/Editing (Volunteers)**  
+  - **Viewing:** DONE  
+  - **Editing:** Pending
 
-# Ticket system for participants
+- [ ] **Ticket System (Participants)**  
+  Manage tickets for participants.
 
+- [ ] **VPN Provisioning**  
+  Provide VPN access for participants.
 
-# VPN Provisioning (Future Work)
