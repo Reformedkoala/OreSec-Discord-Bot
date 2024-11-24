@@ -9,6 +9,9 @@ type Config struct {
     BloodRole string `mapstructure:"BLOOD_ROLE"`
     GuildID string `mapstructure:"GUILD_ID"`
     AppID string `mapstructure:"APP_ID"`
+    TicketChannel string `mapstructure:"TICKET_CHANNEL"`
+    TicketCategory string `mapstructure:"TICKET_CATEGORY"`
+    VolunteerRole string `mapstructure:"VOLUNTEER_ROLE"`
 }
 
 type ChallengePost struct {

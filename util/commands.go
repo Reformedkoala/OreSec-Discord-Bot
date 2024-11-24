@@ -13,6 +13,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var TicketCount = 0
 
 var Commands = []discordgo.ApplicationCommand{
 		{
@@ -33,8 +34,8 @@ var Commands = []discordgo.ApplicationCommand{
 		},
 	}
 
-var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string){
-		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string) {
+var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
 			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseModal,
 				Data: &discordgo.InteractionResponseData{
@@ -110,7 +111,9 @@ var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
 				panic(err)
 			}
 		},
-        "get_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string){
+        "get_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+            url := config.CTFDAddress
+            token := config.CTFDToken
             id := i.ApplicationCommandData().Options[0].IntValue()
             response, err := WebsiteRequest(url, token, "challenges", "GET", "/" + fmt.Sprintf("%d", id), "")
             if err != nil {
@@ -152,8 +155,10 @@ var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
         },
     }
 
-var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string){
-		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, token string, url string) {    
+var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {    
+            url := config.CTFDAddress
+            token := config.CTFDToken
 			data := i.ModalSubmitData()
 
 			if !strings.HasPrefix(data.CustomID, "create_challenge") {
@@ -223,7 +228,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                 return
             }
             
-            log.Printf("ID: %d Challenge Name: %s, Catgeory: %s, Description: %s, Initial: %d, Decay: %d, Final: %d, Flag: %s", 
+            log.Printf("ID: %d Challenge Name: %s, Category: %s, Description: %s, Initial: %d, Decay: %d, Final: %d, Flag: %s", 
                 submitResponse.Data.Id,
                 challenge.Name, 
                 challenge.Category, 
@@ -239,7 +244,145 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                 panic(err)    
             }
         },
+        "ticket": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
+            TicketCount += 1
+            channelName := fmt.Sprintf("ticket-%d", TicketCount)
+            newChannel, err := s.GuildChannelCreateComplex(config.GuildID, discordgo.GuildChannelCreateData{
+                Name:     channelName,
+                Type:     discordgo.ChannelTypeGuildText,
+                ParentID: config.TicketCategory,
+                PermissionOverwrites: []*discordgo.PermissionOverwrite{
+                    {
+                        ID:   config.GuildID,
+                        Type: discordgo.PermissionOverwriteTypeRole,
+                        Deny: discordgo.PermissionViewChannel,
+                    },
+                    {
+                        ID:   i.Member.User.ID, 
+                        Type: discordgo.PermissionOverwriteTypeMember,
+                        Allow: discordgo.PermissionSendMessages |
+                            discordgo.PermissionViewChannel,
+                    },
+                    {
+                        ID:   config.VolunteerRole, 
+                        Type: discordgo.PermissionOverwriteTypeRole,
+                        Allow: discordgo.PermissionViewChannel |
+                            discordgo.PermissionSendMessages,
+                    },
+                },
+            }) 
+            if err != nil {
+                panic(err)
+            }
+            _, err = s.ChannelMessageSendComplex(newChannel.ID, &discordgo.MessageSend{
+                Embed: &discordgo.MessageEmbed{
+                    Title: fmt.Sprintf("%s", i.ModalSubmitData().Components[1].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value),
+                    Description: "Thank you for creating an OreSec support ticket.\n\nThe admins will assist you as soon as possible. We appreciate your patience and hope you are enjoying things so far!\n\n While you wait please refer to the FAQ and Information channels. You can also add any other relevant information in this channel.",
+                    Color: 0x1F8B4C,
+                },
+                Components: []discordgo.MessageComponent{
+                    discordgo.ActionsRow{
+                        Components: []discordgo.MessageComponent{
+                            discordgo.Button{
+                                Emoji: discordgo.ComponentEmoji{
+                                    Name: "\U0000274C",
+                                }, 
+                                Label: "Close Ticket",
+                                Style: discordgo.PrimaryButton,
+                                CustomID: "close_ticket",
+                            },
+                        },
+                    },
+                },
+            })
+            if err != nil {
+                fmt.Println("Error sending button message:", err)
+            }
+            _, err = s.ChannelMessageSendComplex(newChannel.ID, &discordgo.MessageSend{
+                Embed: &discordgo.MessageEmbed{
+                    Description: "Submitted Information",
+                    Color: 0x1F8B4C,
+                    Fields: []*discordgo.MessageEmbedField{
+                        {
+                            Name:   "Player Name",
+                            Value:  i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Inline: false,
+                        },
+                        {
+                            Name:   "Ticket Subject",
+                            Value:  i.ModalSubmitData().Components[1].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Inline: false,
+                        },
+                        {
+                            Name:   "Description",
+                            Value:  i.ModalSubmitData().Components[2].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Inline: false,
+                        },
+                    },
+                },
+            })
+            Respond(s, i, fmt.Sprintf("Your ticket channel has been created and an Admin will take a look shortly, please head over to <#%s>", newChannel.ID))
+            return
+        }, 
     }
+
+var MessageComponentHandler = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+    "create_ticket":func(s *discordgo.Session, i *discordgo.InteractionCreate){
+        err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+            Type: discordgo.InteractionResponseModal,
+            Data: &discordgo.InteractionResponseData{
+                CustomID: "ticket",
+                Title:    "Ticket Creation",
+                Components: []discordgo.MessageComponent{
+                    discordgo.ActionsRow{
+                        Components: []discordgo.MessageComponent{
+                            discordgo.TextInput{
+                                CustomID:    "name",
+                                Label:       "Team Name or Username",
+                                Style:       discordgo.TextInputShort,
+                                Placeholder: "Enter your ctfd team name or username here.",
+                                Required:    true,
+                                MaxLength:   64,
+                                MinLength:   1,
+                            },
+                        },
+                    },
+                    discordgo.ActionsRow{
+                        Components: []discordgo.MessageComponent{
+                            discordgo.TextInput{
+                                CustomID:    "subject",
+                                Label:       "Subject",
+                                Style:       discordgo.TextInputShort,
+                                Placeholder: "Summarize your ticket in a subject line.",
+                                Required:    true,
+                                MaxLength:   64,
+                                MinLength:   1,
+                            },
+                        },
+                    },
+                    discordgo.ActionsRow{
+                        Components: []discordgo.MessageComponent{
+                            discordgo.TextInput{
+                                CustomID:    "issue",
+                                Label:       "Issue Description",
+                                Style:       discordgo.TextInputParagraph,
+                                Placeholder: "Describe in detail your problem and we'll attempt to solve it.",
+                                Required:    true,
+                                MaxLength:   4000,
+                                MinLength:   1,
+                            },
+                        },
+                    },
+
+                },
+            },
+        })
+        if err != nil {
+            panic(err)
+        }
+        return
+    },
+}
 
 func DMMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate, guildID string) {
     // Ignore messages from the bot itself
@@ -369,4 +512,32 @@ func Respond(s *discordgo.Session, i *discordgo.InteractionCreate, content strin
     })
 
     return err
+}
+
+func SendSupportMessage(s *discordgo.Session, channelID string) string {
+    message, err := s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+		Embed: &discordgo.MessageEmbed{
+			Title: "Create a Ticket",
+			Description: "Welcome to an OreSec ran competition. This bot is here to help manage any inquiries you may have through tickets.\n\nThis allows you to get direct and discrete feedback from the Admins on any problems you may face.",
+			Color: 0x1F8B4C,
+		},
+		Components: []discordgo.MessageComponent{
+            discordgo.ActionsRow{
+                Components: []discordgo.MessageComponent{
+                    discordgo.Button{
+                        Emoji: discordgo.ComponentEmoji{
+                            Name: "\U0001F4E9",
+                        }, 
+                        Label: "Create Ticket",
+                        Style: discordgo.PrimaryButton,
+                        CustomID: "create_ticket",
+                    },
+                },
+            },
+        },
+	})
+	if err != nil {
+		fmt.Println("Error sending button message:", err)
+	}
+    return message.ID
 }

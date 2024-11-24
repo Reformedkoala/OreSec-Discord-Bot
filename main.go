@@ -15,6 +15,8 @@ import (
     "syscall"
 )
 
+var ticketMessage string 
+
 func main() {
     config, err := util.LoadConfig(".")
     if err != nil {
@@ -27,7 +29,8 @@ func main() {
     }
 
     oresecBot.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-        log.Println("Bot is up!")
+        log.Print("Bot is up!")
+        ticketMessage = util.SendSupportMessage(s, config.TicketChannel)
     })
 
     oresecBot.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate){
@@ -36,14 +39,18 @@ func main() {
 
     oresecBot.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		switch i.Type {
-		case discordgo.InteractionApplicationCommand:
-			if h, ok := util.CommandsHandlers[i.ApplicationCommandData().Name]; ok {
-				h(s, i, config.CTFDToken, config.CTFDAddress)
-			}
-		case discordgo.InteractionModalSubmit:
-            if h, ok := util.ResponseHandlers[i.ModalSubmitData().CustomID]; ok{
-                h(s, i, config.CTFDToken, config.CTFDAddress)
-            }
+            case discordgo.InteractionApplicationCommand:
+                if h, ok := util.CommandsHandlers[i.ApplicationCommandData().Name]; ok {
+                    h(s, i, config)
+                }
+            case discordgo.InteractionModalSubmit:
+                if h, ok := util.ResponseHandlers[i.ModalSubmitData().CustomID]; ok{
+                    h(s, i, config)
+                }
+            case discordgo.InteractionMessageComponent:
+                if h, ok := util.MessageComponentHandler[i.MessageComponentData().CustomID]; ok{
+                    h(s, i)
+                }
 		}
 	})
 
@@ -71,7 +78,17 @@ func main() {
     signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill) 
     <-stop
 
-    log.Println("Graceful shutdown")
+    log.Print(ticketMessage)
+	if ticketMessage != "" && config.TicketChannel != "" {
+		err := oresecBot.ChannelMessageDelete(config.TicketChannel, ticketMessage)
+		if err != nil {
+			log.Print("Error deleting message:", err)
+		} else {
+			log.Print("Cleanup successful: support message deleted")
+		}
+	}
+    
+    log.Print("Graceful shutdown")
 
 }
 
