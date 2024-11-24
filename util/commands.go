@@ -11,11 +11,11 @@ import (
 	"strings"
 	"github.com/bwmarrin/discordgo"
 )
-
+//Global ticket count variable to make unique channels/track
 var TicketCount = 0
-
+//Global tracking variable to track channel and the respective ticket data
 var TicketTracking = make(map[string]*TicketData)
-
+//Commands variables to store available / commands and load them into discord in main
 var Commands = []discordgo.ApplicationCommand{
 		{
 			Name:        "create_challenge",
@@ -34,10 +34,11 @@ var Commands = []discordgo.ApplicationCommand{
             },
 		},
 	}
-
+//CommandsHandlers to store the / commands and what happens in them
 var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
 		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
-			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			//Interaction for create_challenge command, prompts the modal to the user
+            err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseModal,
 				Data: &discordgo.InteractionResponseData{
 					CustomID: "create_challenge",
@@ -113,6 +114,7 @@ var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
 			}
 		},
         "get_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+            //Setup for web requests to hit the cybermine
             url := config.CTFDAddress
             token := config.CTFDToken
             id := i.ApplicationCommandData().Options[0].IntValue()
@@ -141,6 +143,7 @@ var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                 }
             }
             flag := response.(*GenericResponse)
+            //Printing out the challenge information to the volunteer from the web request
             err = Respond(s, i, fmt.Sprintf("Challenge ID: %.0f\nChallenge Name: %s\nChallenge Category %s\nChallenge Description: %s \nInitial Value: %.0f\nDecay: %.0f\nMinimum: %.0f\nFlag: %s", 
                 challenge.Data["id"], 
                 challenge.Data["name"], 
@@ -158,6 +161,7 @@ var CommandsHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
 
 var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
 		"create_challenge": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {    
+            //Create challenge setup logic to send the needed information to the cybermine
             url := config.CTFDAddress
             token := config.CTFDToken
 			data := i.ModalSubmitData()
@@ -228,7 +232,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                 }
                 return
             }
-            
+            //Once all requests are made, sending the data to the log and responding to the user
             log.Printf("ID: %d Challenge Name: %s, Category: %s, Description: %s, Initial: %d, Decay: %d, Final: %d, Flag: %s", 
                 submitResponse.Data.Id,
                 challenge.Name, 
@@ -246,6 +250,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
             }
         },
         "ticket_channel_creation": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
+            //Logic to start the creation of the channel for the user who submitted the ticket
             TicketCount += 1
             channelName := fmt.Sprintf("ticket-%d", TicketCount)
             newChannel, err := s.GuildChannelCreateComplex(config.GuildID, discordgo.GuildChannelCreateData{
@@ -272,7 +277,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                     },
                 },
             }) 
-
+            //Keeping track of important ticket data in a map based on ticket channel
             TicketTracking[newChannel.ID] = &TicketData {
                 OpenedBy: i.Member.User.ID,
                 PlayerName: i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
@@ -331,10 +336,12 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                     },
                 },
             })
+            //Sending the user a notification of the channel being created and where
             Respond(s, i, fmt.Sprintf("Your ticket channel has been created and an Admin will take a look shortly, please head over to <#%s>", newChannel.ID))
             return
         }, 
         "ticket_channel_deletion": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
+            //Preparing all DM information to send user a copy of their original ticket response and closedby/reason
             channel, err := s.UserChannelCreate(TicketTracking[i.ChannelID].OpenedBy)
 
             if err != nil {
@@ -377,6 +384,11 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                             Value: TicketTracking[i.ChannelID].TicketDescription,
                             Inline: false,
                         },
+                        {
+                            Name: "Reason",
+                            Value: i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Inline: false,
+                        },
                     },
                 },
             })
@@ -388,6 +400,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                     "Failed to send you a DM. Did you disable DM's in your privacy settings?",
                 )
             }
+            //Must respond in order to not glitch out the modal
             Respond(s, i, "Deleting Channel and closing the ticket")
             s.ChannelDelete(i.ChannelID)
             return
@@ -395,6 +408,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
     }
 
 var MessageComponentHandler = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+    //Creating the ticket based on user input in a modal
     "create_ticket":func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
         err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
             Type: discordgo.InteractionResponseModal,
@@ -451,6 +465,7 @@ var MessageComponentHandler = map[string]func(s *discordgo.Session, i *discordgo
         return
     },
     "close_ticket":func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+        //Closing the ticket based on modal interaction
         if t, ok := TicketTracking[i.ChannelID];ok{
             t.ClosedBy = i.Member.User.ID
         }
@@ -550,7 +565,7 @@ func DMMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate, guildID s
 
 
 func WebsiteRequest(url string, token string, endpoint string, requestType string, option string, data any) (any, error) {
-     
+    //Generalized web request stuff since it repeated like 3 times, just a simple func
     var submitResponse interface{}
 
     switch endpoint {
@@ -602,6 +617,7 @@ func WebsiteRequest(url string, token string, endpoint string, requestType strin
 }
 
 func Respond(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error{
+    //Generalized the generic text response so I can just pass in the content and args needed
     err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
         Type: discordgo.InteractionResponseChannelMessageWithSource,
         Data: &discordgo.InteractionResponseData{
@@ -614,6 +630,7 @@ func Respond(s *discordgo.Session, i *discordgo.InteractionCreate, content strin
 }
 
 func SendSupportMessage(s *discordgo.Session, channelID string) string {
+    //Support message to get placed in the tickets channel at bot startup
     message, err := s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 		Embed: &discordgo.MessageEmbed{
 			Title: "Create a Ticket",
