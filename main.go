@@ -4,10 +4,7 @@ import (
     //"fmt"
     "github.com/bwmarrin/discordgo"
     //"encoding/json"
-    //"fmt"
-    //"io"
     "log"
-    //"net/http"
     //"time"
     "OreSec-bot/util"
     "os"
@@ -20,7 +17,7 @@ var ticketMessage string
 func main() {
     config, err := util.LoadConfig(".")
     if err != nil {
-        log.Fatal("cannot load config:", err)
+        log.Fatal("Cannot load config:", err)
     }
 
     oresecBot, err := discordgo.New(config.DiscordToken)
@@ -49,7 +46,7 @@ func main() {
                 }
             case discordgo.InteractionMessageComponent:
                 if h, ok := util.MessageComponentHandler[i.MessageComponentData().CustomID]; ok{
-                    h(s, i)
+                    h(s, i, config)
                 }
 		}
 	})

@@ -9,11 +9,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
 	"github.com/bwmarrin/discordgo"
 )
 
 var TicketCount = 0
+
+var TicketTracking = make(map[string]*TicketData)
 
 var Commands = []discordgo.ApplicationCommand{
 		{
@@ -28,7 +29,7 @@ var Commands = []discordgo.ApplicationCommand{
                     Type:        discordgo.ApplicationCommandOptionInteger,
                     Name:        "id",
                     Description: "A required id",
-                    Required:    true, // Mark this argument as required
+                    Required:    true, 
                 },
             },
 		},
@@ -244,7 +245,7 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                 panic(err)    
             }
         },
-        "ticket": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
+        "ticket_channel_creation": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
             TicketCount += 1
             channelName := fmt.Sprintf("ticket-%d", TicketCount)
             newChannel, err := s.GuildChannelCreateComplex(config.GuildID, discordgo.GuildChannelCreateData{
@@ -271,13 +272,22 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                     },
                 },
             }) 
+
+            TicketTracking[newChannel.ID] = &TicketData {
+                OpenedBy: i.Member.User.ID,
+                PlayerName: i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                TicketSubject: i.ModalSubmitData().Components[1].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                TicketDescription: i.ModalSubmitData().Components[2].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                ClosedBy: "",
+            }
+
             if err != nil {
                 panic(err)
             }
             _, err = s.ChannelMessageSendComplex(newChannel.ID, &discordgo.MessageSend{
                 Embed: &discordgo.MessageEmbed{
                     Title: fmt.Sprintf("%s", i.ModalSubmitData().Components[1].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value),
-                    Description: "Thank you for creating an OreSec support ticket.\n\nThe admins will assist you as soon as possible. We appreciate your patience and hope you are enjoying things so far!\n\n While you wait please refer to the FAQ and Information channels. You can also add any other relevant information in this channel.",
+                    Description: fmt.Sprintf("Thank you for creating an OreSec support ticket.\n\nThe <@&%s>'s will assist you as soon as possible. We appreciate your patience and hope you are enjoying things so far!\n\n While you wait please refer to the FAQ and Information channels. You can also add any other relevant information in this channel.", config.VolunteerRole),
                     Color: 0x1F8B4C,
                 },
                 Components: []discordgo.MessageComponent{
@@ -305,17 +315,17 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
                     Fields: []*discordgo.MessageEmbedField{
                         {
                             Name:   "Player Name",
-                            Value:  i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Value:  TicketTracking[newChannel.ID].PlayerName,
                             Inline: false,
                         },
                         {
                             Name:   "Ticket Subject",
-                            Value:  i.ModalSubmitData().Components[1].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Value:  TicketTracking[newChannel.ID].TicketSubject,
                             Inline: false,
                         },
                         {
                             Name:   "Description",
-                            Value:  i.ModalSubmitData().Components[2].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value,
+                            Value:  TicketTracking[newChannel.ID].TicketDescription,
                             Inline: false,
                         },
                     },
@@ -324,14 +334,72 @@ var ResponseHandlers = map[string]func(s *discordgo.Session, i *discordgo.Intera
             Respond(s, i, fmt.Sprintf("Your ticket channel has been created and an Admin will take a look shortly, please head over to <#%s>", newChannel.ID))
             return
         }, 
+        "ticket_channel_deletion": func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config) {
+            channel, err := s.UserChannelCreate(TicketTracking[i.ChannelID].OpenedBy)
+
+            if err != nil {
+                log.Print("error creating channel:", err)
+                s.ChannelMessageSend(
+                    config.TicketChannel,
+                    "Something went wrong while sending the DM!",
+                )
+                return
+            }
+
+            _, err = s.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
+                Embed: &discordgo.MessageEmbed{
+                    Title: "Ticket Closed",
+                    Description: "Your ticket was closed. Please refer to below for a short summary",
+                    Color: 0x1F8B4C,
+                    Fields: []*discordgo.MessageEmbedField{
+                        {
+                            Name:   "Opened By",
+                            Value:  fmt.Sprintf("<@%s>", TicketTracking[i.ChannelID].OpenedBy),
+                            Inline: false,
+                        },
+                        {
+                            Name:   "Closed By",
+                            Value:  fmt.Sprintf("<@%s>", TicketTracking[i.ChannelID].ClosedBy),
+                            Inline: false,
+                        },
+                        {
+                            Name:   "Player Name",
+                            Value:  TicketTracking[i.ChannelID].PlayerName,
+                            Inline: false,
+                        },
+                        {
+                            Name:   "Ticket Subject",
+                            Value: TicketTracking[i.ChannelID].TicketSubject,
+                            Inline: false,
+                        },
+                        {
+                            Name:   "Description",
+                            Value: TicketTracking[i.ChannelID].TicketDescription,
+                            Inline: false,
+                        },
+                    },
+                },
+            })
+
+            if err != nil {
+                log.Print("error sending DM message:", err)
+                s.ChannelMessageSend(
+                    config.TicketChannel,
+                    "Failed to send you a DM. Did you disable DM's in your privacy settings?",
+                )
+            }
+            Respond(s, i, "Deleting Channel and closing the ticket")
+            s.ChannelDelete(i.ChannelID)
+            return
+        }, 
     }
 
-var MessageComponentHandler = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-    "create_ticket":func(s *discordgo.Session, i *discordgo.InteractionCreate){
+var MessageComponentHandler = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+    "create_ticket":func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
         err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
             Type: discordgo.InteractionResponseModal,
             Data: &discordgo.InteractionResponseData{
-                CustomID: "ticket",
+                CustomID: "ticket_channel_creation",
                 Title:    "Ticket Creation",
                 Components: []discordgo.MessageComponent{
                     discordgo.ActionsRow{
@@ -374,6 +442,37 @@ var MessageComponentHandler = map[string]func(s *discordgo.Session, i *discordgo
                         },
                     },
 
+                },
+            },
+        })
+        if err != nil {
+            panic(err)
+        }
+        return
+    },
+    "close_ticket":func(s *discordgo.Session, i *discordgo.InteractionCreate, config Config){
+        if t, ok := TicketTracking[i.ChannelID];ok{
+            t.ClosedBy = i.Member.User.ID
+        }
+        err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+            Type: discordgo.InteractionResponseModal,
+            Data: &discordgo.InteractionResponseData{
+                CustomID: "ticket_channel_deletion",
+                Title:    "Ticket Closing",
+                Components: []discordgo.MessageComponent{
+                    discordgo.ActionsRow{
+                        Components: []discordgo.MessageComponent{
+                            discordgo.TextInput{
+                                CustomID:    "Reason",
+                                Label:       "Reason",
+                                Style:       discordgo.TextInputParagraph,
+                                Placeholder: "Enter reason for ticket closure here",
+                                Required:    true,
+                                MaxLength:   4000,
+                                MinLength:   1,
+                            },
+                        },
+                    },
                 },
             },
         })

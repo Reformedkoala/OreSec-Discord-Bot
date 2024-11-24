@@ -89,3 +89,11 @@ type SolveData struct {
     Data string `json:"data"`
     Account_url string `json:"account_url"`
 }
+
+type TicketData struct {
+    PlayerName string 
+    TicketSubject string
+    TicketDescription string
+    OpenedBy string
+    ClosedBy string
+}

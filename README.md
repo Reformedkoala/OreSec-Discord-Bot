@@ -16,9 +16,9 @@ This is the **OreSec Discord bot**, written in **Go**.
   - **Viewing:** DONE  
   - **Editing:** Pending
 
-- [ ] **Ticket System (Participants)**  
+- [x] **Ticket System (Participants)**  
   Manage tickets for participants.
-
+  - **TODO:** Clean up/improve ticket history, maybe look into database storage for history but idk
 - [ ] **VPN Provisioning**  
   Provide VPN access for participants.
 
