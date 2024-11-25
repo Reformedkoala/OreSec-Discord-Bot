@@ -6,9 +6,6 @@ This is the **OreSec Discord bot**, written in **Go**.
 - [x] **First Bloods on CTF Challenges**  
   Tracks first bloods on challenges from [CyberMine](http://cybermine.mines.edu).
 
-- [x] **Challenge Record Management**  
-  Keeps a record of challenges to prevent duplication.
-
 - [x] **Challenge Creation (Volunteers)**  
   Allows volunteers to create challenges via Discord.
 
